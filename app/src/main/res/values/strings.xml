@@ -2,5 +2,5 @@
     <string name="app_name">PowerCutTracker</string>
     <string name="title_activity_maps">MapsActivity</string>
     <string name="home">Home</string>
-    <string name="current_location">Current Location</string>
+    <string name="my_location">My Location</string>
 </resources>

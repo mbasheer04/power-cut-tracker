@@ -20,13 +20,13 @@
         android:orientation="vertical"
         app:layout_constraintBottom_toTopOf="@+id/toolbar"
         app:layout_constraintTop_toTopOf="parent"
-        tools:context=".MapsActivity" />
+        tools:context=".MapsActivity"/>
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/teal_200"
+        android:background="?attr/colorPrimaryVariant"
         android:minHeight="?attr/actionBarSize"
         app:layout_constraintBottom_toBottomOf="parent"
         app:titleTextColor="@color/white"
@@ -41,9 +41,10 @@
         android:clickable="true"
         android:contentDescription="@string/home"
         android:focusable="true"
+        app:backgroundTint="?attr/colorPrimaryVariant"
         app:layout_constraintBottom_toTopOf="@+id/toolbar"
         app:layout_constraintEnd_toEndOf="parent"
-        app:srcCompat="@android:drawable/ic_menu_mylocation" />
+        app:srcCompat="@drawable/ic_geolocate" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/home_button"
@@ -52,11 +53,11 @@
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="16dp"
         android:clickable="true"
-        android:contentDescription="@string/current_location"
+        android:contentDescription="@string/my_location"
         android:focusable="true"
+        app:backgroundTint="?attr/colorPrimaryVariant"
         app:layout_constraintBottom_toTopOf="@+id/location_button"
         app:layout_constraintEnd_toEndOf="parent"
-        app:srcCompat="@drawable/home_25694"
-        tools:ignore="ImageContrastCheck" />
+        app:srcCompat="@drawable/home_25694" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
