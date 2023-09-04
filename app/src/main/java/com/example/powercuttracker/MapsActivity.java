@@ -2,14 +2,26 @@ package com.example.powercuttracker;
 
 import androidx.fragment.app.FragmentActivity;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.example.powercuttracker.databinding.ActivityMapsBinding;
 
@@ -29,6 +41,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.ListView;
 
 import com.google.android.gms.common.api.ApiException;
@@ -56,14 +69,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private GoogleMap mMap;
     private ActivityMapsBinding binding;
-
-    // New variables for Current Place picker
+    private static final String TAG = "MapsActivity";
     private PlacesClient mPlacesClient;
     private FusedLocationProviderClient mFusedLocationProviderClient;
 
     // The geographical location where the device is currently located. That is, the last-known
     // location retrieved by the Fused Location Provider.
     private Location mLastKnownLocation;
+    private Marker currentLocationMarker;
 
     // A default location (Sydney, Australia) and default zoom to use when location permission is
     // not granted.
@@ -71,13 +84,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final int DEFAULT_ZOOM = 15;
     private static final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1;
     private boolean mLocationPermissionGranted;
-
-    // Used for selecting the Current Place.
-    private static final int M_MAX_ENTRIES = 5;
-    private String[] mLikelyPlaceNames;
-    private String[] mLikelyPlaceAddresses;
-    private String[] mLikelyPlaceAttributions;
-    private LatLng[] mLikelyPlaceLatLngs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -94,14 +100,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         //Retrieves the toolbar. Uses binding syntax as opposed to getViewByID().
         Toolbar toolbar = binding.toolbar;
         FloatingActionButton homeButton = binding.homeButton;
-        FloatingActionButton locationButton = binding.locationButton;
 
         // Initialize the Places client
         String apiKey = BuildConfig.MAPS_API_KEY; //Retrieves API Key
         Places.initialize(getApplicationContext(), apiKey);
         mPlacesClient = Places.createClient(this);
-        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
-    }
+        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);                                                                                           }
 
     /**
      * Manipulates the map once available.
@@ -120,14 +124,71 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         LatLng sydney = new LatLng(-34, 151);
         mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
         mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
+
+        // Enable the zoom controls for the map
+        mMap.getUiSettings().setZoomControlsEnabled(true);
+
+        // Prompt the user for permission, and start regular location updates.
+        getLocationPermission();
+        startLocationUpdates();
+
+        // Location button retrieves device location on click.
+        FloatingActionButton locationButton = binding.locationButton;
+        locationButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                moveToCurrentLocation();
+            }
+        });
     }
 
+    /**
+     * Creates a LocationRequest and uses the FusedLocationProvider to request regular location updates.
+     */
+    @SuppressLint("MissingPermission")
+    private void startLocationUpdates() {
+        LocationRequest locationRequest = new LocationRequest.Builder(5000).build();
+
+        // Location callback is used every 5000ms once location is ready to be received. Retrieves the last
+        // known location using FusedLocationProvider, updates the global mLastKnownLocation variable, and
+        // updates the location of the "Current Location" marker.
+        LocationCallback locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                if (locationResult.getLastLocation() != null) {
+                    mLastKnownLocation = locationResult.getLastLocation();
+                    double latitude = mLastKnownLocation.getLatitude();
+                    double longitude = mLastKnownLocation.getLongitude();
+
+                    // Update the current location marker or add a new one
+                    if (currentLocationMarker == null) {
+                        currentLocationMarker = mMap.addMarker(new MarkerOptions()
+                                .position(new LatLng(latitude, longitude))
+                                .title("Current Location")
+                                .icon(BitmapDescriptorFactory.fromBitmap(resizeMapIcons("blue_circle",60,60))));
+                    } else {
+                        currentLocationMarker.setPosition(new LatLng(latitude, longitude));
+                    }
+                }
+            }
+        };
+        mFusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, null);
+    }
+
+    private void moveToCurrentLocation(){
+        if(mLastKnownLocation != null) {
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                    new LatLng(mLastKnownLocation.getLatitude(),
+                            mLastKnownLocation.getLongitude()), DEFAULT_ZOOM));
+        }
+    }
+
+    /**
+     * Request location permission, so that we can get the location of the
+     * device. The result of the permission request is handled by a callback,
+     * onRequestPermissionsResult.
+     */
     private void getLocationPermission() {
-        /*
-         * Request location permission, so that we can get the location of the
-         * device. The result of the permission request is handled by a callback,
-         * onRequestPermissionsResult.
-         */
         mLocationPermissionGranted = false;
         if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
                 android.Manifest.permission.ACCESS_FINE_LOCATION)
@@ -139,4 +200,33 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
         }
     }
+
+    /**
+     * Handles the result of the request for location permissions
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String permissions[],
+                                           @NonNull int[] grantResults) {
+
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        mLocationPermissionGranted = false;
+        switch (requestCode) {
+            case PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION: {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    mLocationPermissionGranted = true;
+                }
+            }
+        }
+    }
+
+    public Bitmap resizeMapIcons(String iconName,int width, int height){
+        Bitmap imageBitmap = BitmapFactory.decodeResource(getResources(),getResources().getIdentifier(iconName, "drawable", getPackageName()));
+        Bitmap resizedBitmap = Bitmap.createScaledBitmap(imageBitmap, width, height, false);
+        return resizedBitmap;
+    }
+
+
 }
