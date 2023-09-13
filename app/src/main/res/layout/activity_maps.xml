@@ -15,12 +15,12 @@
         android:id="@+id/map"
         android:name="com.google.android.gms.maps.SupportMapFragment"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
         android:importantForAccessibility="no"
         android:orientation="vertical"
         app:layout_constraintBottom_toTopOf="@+id/toolbar"
         app:layout_constraintTop_toTopOf="parent"
-        tools:context=".MapsActivity"/>
+        tools:context=".MapsActivity" />
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
