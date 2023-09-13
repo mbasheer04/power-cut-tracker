@@ -1,16 +1,13 @@
 package com.example.powercuttracker;
 
-import androidx.fragment.app.FragmentActivity;
-
 import android.annotation.SuppressLint;
-import android.app.Activity;
-import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 
+import com.example.powercuttracker.database_api.APIClient;
+import com.example.powercuttracker.database_api.APIInterface;
+import com.example.powercuttracker.database_api.User;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
@@ -18,7 +15,6 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
@@ -33,37 +29,21 @@ import androidx.core.content.ContextCompat;
 
 import android.content.pm.PackageManager;
 import android.location.Location;
-import android.os.Bundle;
-import android.text.TextUtils;
-import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
+import android.provider.Settings;
 import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
-import android.widget.ListView;
 
-import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 
 
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
 import com.google.android.libraries.places.api.Places;
-import com.google.android.libraries.places.api.model.Place;
-import com.google.android.libraries.places.api.model.PlaceLikelihood;
-import com.google.android.libraries.places.api.net.FindCurrentPlaceRequest;
-import com.google.android.libraries.places.api.net.FindCurrentPlaceResponse;
 import com.google.android.libraries.places.api.net.PlacesClient;
 
-import java.util.Arrays;
-import java.util.List;
-
-import com.example.powercuttracker.BuildConfig;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
@@ -72,6 +52,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final String TAG = "MapsActivity";
     private PlacesClient mPlacesClient;
     private FusedLocationProviderClient mFusedLocationProviderClient;
+    private String androidID;
+
+    // Interface for Database API
+    private APIInterface apiInterface;
 
     // The geographical location where the device is currently located. That is, the last-known
     // location retrieved by the Fused Location Provider.
@@ -81,9 +65,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     // A default location (Sydney, Australia) and default zoom to use when location permission is
     // not granted.
     private final LatLng mDefaultLocation = new LatLng(-33.8523341, 151.2106085);
+    private LatLng mHomeLocation;
     private static final int DEFAULT_ZOOM = 15;
     private static final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1;
     private boolean mLocationPermissionGranted;
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,6 +78,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         binding = ActivityMapsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        androidID = Settings.Secure.getString(this.getContentResolver(),Settings.Secure.ANDROID_ID);
+        //db_api = new RestApiApplication();
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -99,13 +88,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         //Retrieves the toolbar. Uses binding syntax as opposed to getViewByID().
         Toolbar toolbar = binding.toolbar;
-        FloatingActionButton homeButton = binding.homeButton;
 
         // Initialize the Places client
         String apiKey = BuildConfig.MAPS_API_KEY; //Retrieves API Key
         Places.initialize(getApplicationContext(), apiKey);
         mPlacesClient = Places.createClient(this);
-        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);                                                                                           }
+        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+
+        // Initialise Database API interface using Retrofit
+        apiInterface = APIClient.getRetrofitInstance().create(APIInterface.class);
+
+    }
 
     /**
      * Manipulates the map once available.
@@ -134,9 +127,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // Location button retrieves device location on click.
         FloatingActionButton locationButton = binding.locationButton;
+        FloatingActionButton homeButton = binding.homeButton;
         locationButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 moveToCurrentLocation();
+            }
+        });
+
+        homeButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                TestApi();
+                //moveToHome();
             }
         });
     }
@@ -175,6 +176,57 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mFusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, null);
     }
 
+    private void moveToHome(){
+        if(mHomeLocation != null){
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                    new LatLng(mHomeLocation.latitude,
+                            mHomeLocation.longitude), DEFAULT_ZOOM));
+        } else {
+            setHome();
+        }
+    }
+
+    // Method for testing API connection.
+    public void TestApi(){
+        apiInterface = APIClient.getRetrofitInstance().create(APIInterface.class);
+
+        Call<User> call = apiInterface.getUserById(2L);
+        call.enqueue(new Callback<User>() {
+            @Override
+            public void onResponse(Call<User> call, Response<User> response) {
+                if (response.isSuccessful()) {
+                    User user = response.body();
+                    System.out.println(user.getAndroid_id());
+                    System.out.println("Data received.");
+                } else {
+                    System.out.println("Error.");
+                }
+            }
+
+            @Override
+            public void onFailure(Call<User> call, Throwable t) {
+                // Handle network error
+                System.out.println("Network error");
+            }
+        });
+    }
+
+    private void setHome(){
+//        try {
+//            ResultSet rs = db.selectSingle("user", "android_id", androidID);
+//            if (!rs.first()){
+//                db.insertSingle("user","home_lat,home_long,android_id",
+//                        "" + mLastKnownLocation.getLatitude() + "," +
+//                                mLastKnownLocation.getLongitude() + "," + androidID);
+//                rs = db.selectSingle("user", "android_id", androidID);
+//            }
+//            mHomeLocation = new LatLng(rs.getDouble("home_lat"),rs.getDouble("home_long"));
+//            rs.close();
+//        } catch (SQLException e){
+//
+//        }
+    }
+
     private void moveToCurrentLocation(){
         if(mLastKnownLocation != null) {
             mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
@@ -206,7 +258,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
      */
     @Override
     public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String permissions[],
+                                           @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
 
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -228,5 +280,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         return resizedBitmap;
     }
 
-
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+    }
 }
